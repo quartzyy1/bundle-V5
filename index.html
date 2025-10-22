@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reco Bundle – Scoring v2.2</title>
+  <style>
+    :root{--bg:#0b0c10;--panel:#151821;--muted:#9aa3b2;--text:#e6e9ef;--accent:#6ee7b7;--accent2:#60a5fa;--warn:#fbbf24;}
+    *{box-sizing:border-box}
+    body{margin:0;padding:24px;background:linear-gradient(180deg,#0b0c10,#111827 40%,#0b0c10);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text)}
+    h1{font-size:22px;margin:0 0 16px}
+    small, label, .hint{color:var(--muted)}
+    .grid{display:grid;gap:16px}
+    .two{grid-template-columns:1fr 1fr}
+    .panel{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);backdrop-filter: blur(6px);border-radius:16px;padding:16px}
+    select, input[type="text"], .chips{width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:#0f1220;color:var(--text);padding:10px 12px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;padding:10px;border-style:dashed}
+    .chip{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);font-size:12px;cursor:pointer}
+    .chip input{margin:0}
+    button{appearance:none;border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer}
+    .primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0b0c10}
+    .muted{background:#1f2433;color:var(--text)}
+    .stack{display:flex;gap:10px;flex-wrap:wrap}
+    .scores{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+    .card{background:#0f1220;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:12px}
+    .k{font-size:11px;color:var(--muted)}
+    .v{font-size:18px;font-weight:700}
+    .rec{border-left:4px solid var(--accent);padding-left:12px}
+    .badg{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(110,231,183,0.1);border:1px solid rgba(110,231,183,0.4);color:var(--accent);font-size:12px}
+    .warn{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.45);color:#fde68a}
+    .foot{opacity:.8;font-size:12px;margin-top:8px}
+  </style>
+</head>
+<body>
+  <h1>🔎 Recommandation Bundle – Scoring v2.2</h1>
+  <p class="hint">Remplis le formulaire, puis clique sur <b>Générer la reco</b>. Le moteur calcule un score par produit et propose un bundle adapté, avec explications.</p>
+
+  <div class="grid two">
+    <div class="panel">
+      <h3>Formulaire</h3>
+      <div class="grid two">
+        <div>
+          <label>Secteur</label>
+          <select id="secteur">
+            <option>Santé</option>
+            <option>Industrie</option>
+            <option>Finance</option>
+            <option>Éducation</option>
+            <option>Administration</option>
+            <option>Commerce</option>
+            <option>BTP</option>
+            <option>Transport</option>
+            <option>Énergie</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div>
+          <label>Taille</label>
+          <select id="taille">
+            <option>1-10</option>
+            <option>11-50</option>
+            <option>51-100</option>
+            <option>101-250</option>
+            <option>250-1000</option>
+            <option>1000+</option>
+          </select>
+        </div>
+        <div>
+          <label>Maturité cyber</label>
+          <select id="maturite">
+            <option>Faible</option>
+            <option>Moyenne</option>
+            <option>Élevée</option>
+          </select>
+        </div>
+        <div>
+          <label>Budget</label>
+          <select id="budget">
+            <option>Faible</option>
+            <option>Moyen</option>
+            <option>Élevé</option>
+          </select>
+        </div>
+        <div>
+          <label>Contraintes réglementaires</label>
+          <select id="contraintes"><option>Non</option><option>Oui</option></select>
+        </div>
+        <div>
+          <label>Multi-sites / prestataires</label>
+          <select id="multi"><option>Non</option><option>Oui</option></select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Pain points</label>
+        <div class="chips" id="pp">
+          <label class="chip"><input type="checkbox" value="Phishing"> Phishing</label>
+          <label class="chip"><input type="checkbox" value="Fraude"> Fraude</label>
+          <label class="chip"><input type="checkbox" value="Conformité"> Conformité</label>
+          <label class="chip"><input type="checkbox" value="Accès partagés"> Accès partagés</label>
+          <label class="chip"><input type="checkbox" value="Sensibilisation"> Sensibilisation</label>
+          <label class="chip"><input type="checkbox" value="Gouvernance"> Gouvernance</label>
+          <label class="chip"><input type="checkbox" value="Ransomware"> Ransomware</label>
+          <label class="chip"><input type="checkbox" value="Rotation personnel"> Rotation personnel</label>
+        </div>
+      </div>
+
+      <div class="stack" style="margin-top:12px">
+        <label class="chip warn"><input id="filtrage" type="checkbox"> Filtrage mail déjà en place</label>
+      </div>
+
+      <div class="stack" style="margin-top:16px">
+        <button class="primary" onclick="generer()">Générer la reco</button>
+        <button class="muted" onclick="resetForm()">Réinitialiser</button>
+      </div>
+      <div class="foot">Version moteur: <b>2.2</b> — règles: exclusivité Protect, sensibilisation-only, nudges par segment, filtrage existant.</div>
+    </div>
+
+    <div class="panel">
+      <h3>Résultat</h3>
+      <div id="result"></div>
+      <div id="scores" style="margin-top:12px"></div>
+      <div id="offers" style="margin-top:12px"></div>
+      <div id="pitch" style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.1);padding-top:10px"></div>
+    </div>
+  </div>
+
+<script>
+function getForm(){
+  const secteur=document.getElementById('secteur').value;
+  const taille=document.getElementById('taille').value;
+  const maturite=document.getElementById('maturite').value;
+  const budget=document.getElementById('budget').value;
+  const contraintes=document.getElementById('contraintes').value;
+  const multi=document.getElementById('multi').value;
+  const filtrage=document.getElementById('filtrage').checked?'Oui':'Non';
+  const painpoints=Array.from(document.querySelectorAll('#pp input:checked')).map(x=>x.value);
+  return{secteur,taille,maturite,budget,contraintes,multi,filtrage,painpoints};
+}
+
+function generer(){
+  // simulation simple: affichage placeholder pour test interface
+  document.getElementById('result').innerHTML='<div class="rec"><div class="badg">Bundle recommandé</div><h2 style="margin:8px 0 6px">Protect Essential + Coach</h2><div class="hint">Protection mail + sensibilisation</div></div>';
+  document.getElementById('scores').innerHTML='';
+  document.getElementById('offers').innerHTML='<h4>💡 Suggestions d\'offre</h4><ul><li>Incentive multi-produit: −8% pack 2 produits</li><li>Filtrage existant: Coach+Academy à −15%</li></ul>';
+  document.getElementById('pitch').innerHTML='<h4>🗣️ Pitch conseillé</h4><p class="hint">Un espace apparaîtra ici pour afficher automatiquement le pitch adapté au segment et secteur.</p>';
+}
+function resetForm(){location.reload();}
+</script>
+</body>
+</html>
