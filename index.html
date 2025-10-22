@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Reco Bundle – Scoring v2.2</title>
   <style>
-    :root{--bg:#0b0c10;--panel:#151821;--muted:#9aa3b2;--text:#e6e9ef;--accent:#6ee7b7;--accent2:#60a5fa;--warn:#fbbf24;}
+    :root{--bg:#0b0c10;--panel:#151821;--muted:#9aa3b2;--text:#e6e9ef;--accent:#6ee7b7;--accent2:#60a5fa;--warn:#fbbf24;--err:#f87171}
     *{box-sizing:border-box}
     body{margin:0;padding:24px;background:linear-gradient(180deg,#0b0c10,#111827 40%,#0b0c10);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text)}
     h1{font-size:22px;margin:0 0 16px}
@@ -28,6 +28,7 @@
     .rec{border-left:4px solid var(--accent);padding-left:12px}
     .badg{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(110,231,183,0.1);border:1px solid rgba(110,231,183,0.4);color:var(--accent);font-size:12px}
     .warn{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.45);color:#fde68a}
+    .error{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);color:#fecaca;border-radius:12px;padding:10px}
     .foot{opacity:.8;font-size:12px;margin-top:8px}
     @media(max-width:1000px){.scores{grid-template-columns:1fr 1fr 1fr}}
     @media(max-width:640px){.two{grid-template-columns:1fr}.scores{grid-template-columns:1fr 1fr}}
@@ -37,12 +38,14 @@
   <h1>🔎 Recommandation Bundle – Scoring v2.2</h1>
   <p class="hint">Remplis le formulaire, puis clique sur <b>Générer la reco</b>. Le moteur calcule un score par produit et propose un bundle adapté, avec explications.</p>
 
+  <div id="errbox" class="error" style="display:none"></div>
+
   <div class="grid two">
     <div class="panel">
       <h3>Formulaire</h3>
       <div class="grid two">
         <div>
-          <label>Secteur</label>
+          <label for="secteur">Secteur</label>
           <select id="secteur">
             <option>Santé</option>
             <option>Industrie</option>
@@ -57,7 +60,7 @@
           </select>
         </div>
         <div>
-          <label>Taille</label>
+          <label for="taille">Taille</label>
           <select id="taille">
             <option>1-10</option>
             <option>11-50</option>
@@ -68,7 +71,7 @@
           </select>
         </div>
         <div>
-          <label>Maturité cyber</label>
+          <label for="maturite">Maturité cyber</label>
           <select id="maturite">
             <option>Faible</option>
             <option>Moyenne</option>
@@ -76,7 +79,7 @@
           </select>
         </div>
         <div>
-          <label>Budget</label>
+          <label for="budget">Budget</label>
           <select id="budget">
             <option>Faible</option>
             <option>Moyen</option>
@@ -84,17 +87,17 @@
           </select>
         </div>
         <div>
-          <label>Contraintes réglementaires</label>
+          <label for="contraintes">Contraintes réglementaires</label>
           <select id="contraintes"><option>Non</option><option>Oui</option></select>
         </div>
         <div>
-          <label>Multi-sites / prestataires</label>
+          <label for="multi">Multi-sites / prestataires</label>
           <select id="multi"><option>Non</option><option>Oui</option></select>
         </div>
       </div>
 
       <div style="margin-top:12px">
-        <label>Pain points</label>
+        <label for="pp">Pain points</label>
         <div class="chips" id="pp">
           <label class="chip"><input type="checkbox" value="Phishing"> Phishing</label>
           <label class="chip"><input type="checkbox" value="Fraude"> Fraude</label>
@@ -112,10 +115,10 @@
       </div>
 
       <div class="stack" style="margin-top:16px">
-        <button class="primary" onclick="generer()">Générer la reco</button>
-        <button class="muted" onclick="resetForm()">Réinitialiser</button>
+        <button class="primary" id="btn-gen">Générer la reco</button>
+        <button class="muted" id="btn-reset">Réinitialiser</button>
       </div>
-      <div class="foot">Version moteur: <b>2.2</b> — règles: exclusivité Protect, sensibilisation-only, nudges par segment, filtrage existant.</div>
+      <div class="foot">Version moteur: <b>2.2</b> — règles: exclusivité Protect, sensibilisation-only (strict), nudges par segment, filtrage existant.</div>
     </div>
 
     <div class="panel">
@@ -127,25 +130,48 @@
     </div>
   </div>
 
-<script>
-// ---------- Helpers ----------
-const any = (arr, set) => arr.some(x => set.includes(x));
+  <div class="panel" style="margin-top:16px">
+    <h3>🧪 Cas de test rapides</h3>
+    <div class="stack">
+      <button class="muted" data-test="tpe-anti-phish">TPE Industrie · Moyenne · Phishing+Conformité</button>
+      <button class="muted" data-test="pme-public">PME Public · Élevée · Contraintes Oui · Multi Oui</button>
+      <button class="muted" data-test="mid-multi">251–1000 · Multi Oui · Accès partagés</button>
+      <button class="muted" data-test="sensibilisation-only">Sensibilisation seule (filtrage existant)</button>
+    </div>
+  </div>
 
-function segFromTaille(t){
-  if(["1-10","11-50"].includes(t)) return "1-50";
-  if(["51-100","101-250"].includes(t)) return "51-250";
-  if(t==="250-1000") return "251-1000";
-  return "1000+";
+<script>
+// ---------- Safe DOM Helpers ----------
+const $ = (id)=>document.getElementById(id);
+const warn = (msg)=>{ const box=$('errbox'); box.style.display='block'; box.innerHTML = msg; };
+const clearWarn = ()=>{ const box=$('errbox'); box.style.display='none'; box.innerHTML=''; };
+
+function requiredIds(){
+  return ['secteur','taille','maturite','budget','contraintes','multi','pp','filtrage','result','scores','offers','pitch'];
 }
 
+function checkDOM(){
+  const missing = requiredIds().filter(id=>!$(id));
+  if(missing.length){
+    warn('Erreur d\'initialisation : éléments manquants → '+missing.join(', '));
+    return false;
+  }
+  return true;
+}
+
+// ---------- Helpers ----------
+const any = (arr, set) => arr.some(x => set.includes(x));
+const segFromTaille = (t)=> (['1-10','11-50'].includes(t)?'1-50':(['51-100','101-250'].includes(t)?'51-250':(t==='250-1000'?'251-1000':'1000+')));
+
 function getForm(){
-  const secteur = document.getElementById('secteur').value;
-  const taille = document.getElementById('taille').value;
-  const maturite = document.getElementById('maturite').value;
-  const budget = document.getElementById('budget').value;
-  const contraintes = document.getElementById('contraintes').value;
-  const multi = document.getElementById('multi').value;
-  const filtrage = document.getElementById('filtrage').checked ? 'Oui':'Non';
+  if(!checkDOM()) return null;
+  const secteur = $('secteur').value;
+  const taille = $('taille').value;
+  const maturite = $('maturite').value;
+  const budget = $('budget').value;
+  const contraintes = $('contraintes').value;
+  const multi = $('multi').value;
+  const filtrage = $('filtrage').checked ? 'Oui':'Non';
   const painpoints = Array.from(document.querySelectorAll('#pp input:checked')).map(x=>x.value);
   const segment = segFromTaille(taille);
   return {secteur, taille, segment, maturite, budget, contraintes, multi, filtrage, painpoints};
@@ -158,69 +184,69 @@ function scoreAll(ctx){
   const S = {Essential:0, Advanced:0, Coach:0, Sikker:0, Academy:0};
 
   // Essential
-  if(["1-10","11-50"].includes(taille)) S.Essential+=3;
-  if(["BTP","Commerce","Transport","Industrie"].includes(secteur)) S.Essential+=2;
-  if(maturite==="Faible") S.Essential+=2;
-  if(budget==="Faible") S.Essential+=2;
-  if(any(painpoints,["Phishing","Fraude"])) S.Essential+=1;
-  if(multi==="Non") S.Essential+=1;
-  if(["101-250","250-1000","1000+"].includes(taille)) S.Essential-=3;
-  if(maturite==="Élevée") S.Essential-=2;
-  if(contraintes==="Oui") S.Essential-=1;
+  if(['1-10','11-50'].includes(taille)) S.Essential+=3;
+  if(['BTP','Commerce','Transport','Industrie'].includes(secteur)) S.Essential+=2;
+  if(maturite==='Faible') S.Essential+=2;
+  if(budget==='Faible') S.Essential+=2;
+  if(any(painpoints,['Phishing','Fraude'])) S.Essential+=1;
+  if(multi==='Non') S.Essential+=1;
+  if(['101-250','250-1000','1000+'].includes(taille)) S.Essential-=3;
+  if(maturite==='Élevée') S.Essential-=2;
+  if(contraintes==='Oui') S.Essential-=1;
   if(yes(filtrage)) S.Essential-=3;
-  S.Essential += ({"1-50":1,"51-250":0,"251-1000":-1,"1000+":-2})[segment]||0;
+  S.Essential += ({'1-50':1,'51-250':0,'251-1000':-1,'1000+':-2})[segment]||0;
 
   // Advanced
-  if(["101-250","250-1000","1000+"].includes(taille)) S.Advanced+=3;
-  if(["Santé","Finance","Éducation","Administration","Énergie"].includes(secteur)) S.Advanced+=3;
-  if(contraintes==="Oui") S.Advanced+=3;
-  if(maturite==="Élevée") S.Advanced+=2;
-  if(any(painpoints,["Gouvernance","Ransomware"])) S.Advanced+=2;
-  if(multi==="Oui") S.Advanced+=1; // base
-  if(["1-10","11-50","51-100"].includes(taille)) S.Advanced-=3;
-  if(budget==="Faible") S.Advanced-=2;
-  if(multi==="Oui") S.Advanced+=1; // renforcé
+  if(['101-250','250-1000','1000+'].includes(taille)) S.Advanced+=3;
+  if(['Santé','Finance','Éducation','Administration','Énergie'].includes(secteur)) S.Advanced+=3;
+  if(contraintes==='Oui') S.Advanced+=3;
+  if(maturite==='Élevée') S.Advanced+=2;
+  if(any(painpoints,['Gouvernance','Ransomware'])) S.Advanced+=2;
+  if(multi==='Oui') S.Advanced+=1; // base
+  if(['1-10','11-50','51-100'].includes(taille)) S.Advanced-=3;
+  if(budget==='Faible') S.Advanced-=2;
+  if(multi==='Oui') S.Advanced+=1; // renforcé
   if(yes(filtrage)) S.Advanced-=3;
-  S.Advanced += ({"1-50":-1,"51-250":1,"251-1000":2,"1000+":2})[segment]||0;
+  S.Advanced += ({'1-50':-1,'51-250':1,'251-1000':2,'1000+':2})[segment]||0;
 
   // Coach
-  if(any(painpoints,["Phishing","Fraude","Sensibilisation"])) S.Coach+=3;
-  if(contraintes==="Oui") S.Coach+=3;
-  if(["Santé","Finance","Administration","Éducation","Commerce","BTP"].includes(secteur)) S.Coach+=2;
-  if(["Moyenne","Élevée"].includes(maturite)) S.Coach+=2;
-  if(["11-50","51-100","101-250","250-1000","1000+"].includes(taille)) S.Coach+=1;
-  if(budget==="Faible" && ["1-10"].includes(taille)) { if(contraintes!=="Oui") S.Coach-=2; }
-  if(["BTP","Commerce"].includes(secteur) && ["1-10","11-50"].includes(taille)) S.Coach+=1;
+  if(any(painpoints,['Phishing','Fraude','Sensibilisation'])) S.Coach+=3;
+  if(contraintes==='Oui') S.Coach+=3;
+  if(['Santé','Finance','Administration','Éducation','Commerce','BTP'].includes(secteur)) S.Coach+=2;
+  if(['Moyenne','Élevée'].includes(maturite)) S.Coach+=2;
+  if(['11-50','51-100','101-250','250-1000','1000+'].includes(taille)) S.Coach+=1;
+  if(budget==='Faible' && ['1-10'].includes(taille)) { if(contraintes!=='Oui') S.Coach-=2; }
+  if(['BTP','Commerce'].includes(secteur) && ['1-10','11-50'].includes(taille)) S.Coach+=1;
   if(yes(filtrage)) S.Coach+=1;
-  if(["51-250","251-1000"].includes(segment)) S.Coach+=1;
-  if(["Santé","Administration","Éducation"].includes(secteur)) S.Coach+=1;
+  if(['51-250','251-1000'].includes(segment)) S.Coach+=1;
+  if(['Santé','Administration','Éducation'].includes(secteur)) S.Coach+=1;
 
   // Sikker
-  if(multi==="Oui") S.Sikker+=3;
-  if(any(painpoints,["Accès partagés","Rotation personnel"])) S.Sikker+=3;
-  if(["Industrie","Commerce","BTP","Éducation","Transport"].includes(secteur)) S.Sikker+=2;
-  if(["1-10","11-50","51-100","101-250"].includes(taille)) S.Sikker+=2;
-  if(maturite==="Moyenne") S.Sikker+=1;
-  if(["1000+"].includes(taille)) S.Sikker-=2;
-  if(budget==="Faible" && multi==="Oui") S.Sikker+=1;
-  if(any(painpoints,["Gouvernance"])) S.Sikker+=1;
-  S.Sikker += (segment==="51-250"?2:0) + (segment==="251-1000"?2:0) + (segment==="1000+"?1:0);
-  if(["Santé","Administration"].includes(secteur)) S.Sikker+=1;
+  if(multi==='Oui') S.Sikker+=3;
+  if(any(painpoints,['Accès partagés','Rotation personnel'])) S.Sikker+=3;
+  if(['Industrie','Commerce','BTP','Éducation','Transport'].includes(secteur)) S.Sikker+=2;
+  if(['1-10','11-50','51-100','101-250'].includes(taille)) S.Sikker+=2;
+  if(maturite==='Moyenne') S.Sikker+=1;
+  if(['1000+'].includes(taille)) S.Sikker-=2;
+  if(budget==='Faible' && multi==='Oui') S.Sikker+=1;
+  if(any(painpoints,['Gouvernance'])) S.Sikker+=1;
+  S.Sikker += (segment==='51-250'?2:0) + (segment==='251-1000'?2:0) + (segment==='1000+'?1:0);
+  if(['Santé','Administration'].includes(secteur)) S.Sikker+=1;
 
   // Academy
-  if(contraintes==="Oui") S.Academy+=3;
-  if(["Finance","Santé","Éducation","Administration","Énergie"].includes(secteur)) S.Academy+=3;
-  if(["Moyenne","Élevée"].includes(maturite)) S.Academy+=2;
-  if(["51-100","101-250","250-1000","1000+"].includes(taille)) S.Academy+=2;
-  if(any(painpoints,["Conformité","Sensibilisation"])) S.Academy+=1;
-  if(["1-10"].includes(taille)) S.Academy-=2;
-  if(budget==="Faible") S.Academy-=2;
-  if(["BTP","Commerce"].includes(secteur) && ["1-10","11-50"].includes(taille)) S.Academy-=1;
-  if(secteur==="Éducation") S.Academy+=1;
-  if(painpoints.length>0 && painpoints.every(p=>["Sensibilisation"].includes(p))) S.Academy+=3;
+  if(contraintes==='Oui') S.Academy+=3;
+  if(['Finance','Santé','Éducation','Administration','Énergie'].includes(secteur)) S.Academy+=3;
+  if(['Moyenne','Élevée'].includes(maturite)) S.Academy+=2;
+  if(['51-100','101-250','250-1000','1000+'].includes(taille)) S.Academy+=2;
+  if(any(painpoints,['Conformité','Sensibilisation'])) S.Academy+=1;
+  if(['1-10'].includes(taille)) S.Academy-=2;
+  if(budget==='Faible') S.Academy-=2;
+  if(['BTP','Commerce'].includes(secteur) && ['1-10','11-50'].includes(taille)) S.Academy-=1;
+  if(secteur==='Éducation') S.Academy+=1;
+  if(painpoints.length>0 && painpoints.every(p=>['Sensibilisation'].includes(p))) S.Academy+=3;
   if(yes(filtrage)) S.Academy+=1;
-  S.Academy += (["51-250","251-1000","1000+"].includes(segment)?1:0);
-  if(["Santé","Administration"].includes(secteur)) S.Academy+=1;
+  S.Academy += (['51-250','251-1000','1000+'].includes(segment)?1:0);
+  if(['Santé','Administration'].includes(secteur)) S.Academy+=1;
 
   return S;
 }
@@ -230,12 +256,13 @@ function exclusiviteProtect(S){
 }
 
 function sensibilisationOnly(painpoints){
-  const set = ["Phishing","Fraude","Sensibilisation","Conformité"];
+  // Ne force Coach+Academy QUE si le besoin est strictement sensibilisation/conformité (sans phishing/fraude)
+  const set = ['Sensibilisation','Conformité'];
   return painpoints.length>0 && painpoints.every(p=>set.includes(p));
 }
 
 function cibleParSegment(seg){
-  return {"1-50":2, "51-250":3, "251-1000":3, "1000+":3}[seg]||3;
+  return {'1-50':2, '51-250':3, '251-1000':3, '1000+':3}[seg]||3;
 }
 
 function choixBundle(S, ctx){
@@ -244,10 +271,13 @@ function choixBundle(S, ctx){
   exclusiviteProtect(S);
   const entries = Object.entries(S).sort((a,b)=>b[1]-a[1]);
   let picks = entries.filter(([,v])=>v>-999).slice(0,3).map(([k])=>k);
+
+  // Sensibilisation only: forcer Coach + Academy
   if(sensibilisationOnly(painpoints)){
     if(!picks.includes('Coach')) picks[2] = 'Coach';
     if(!picks.includes('Academy')) picks[1] = 'Academy';
   }
+
   const target = cibleParSegment(segment);
   if(picks.length>target) picks = picks.slice(0,target);
   if(picks.length<target){
@@ -255,93 +285,178 @@ function choixBundle(S, ctx){
     const prio = [];
     if(contraintes==='Oui'){ if(!picks.includes('Academy')) prio.push('Academy'); if(!picks.includes('Coach')) prio.push('Coach'); }
     if(multi==='Oui' && !picks.includes('Sikker')) prio.push('Sikker');
-    if(any(painpoints,["Ransomware","Gouvernance"]) && !picks.includes('Advanced') && S.Advanced>-999) prio.push('Advanced');
-    if(any(painpoints,["Phishing","Fraude"]) && !picks.includes('Coach')) prio.push('Coach');
+    if(any(painpoints,['Ransomware','Gouvernance']) && !picks.includes('Advanced') && S.Advanced>-999) prio.push('Advanced');
+    if(any(painpoints,['Phishing','Fraude']) && !picks.includes('Coach')) prio.push('Coach');
     for(const k of [...prio, ...pool]){
       if(picks.length>=target) break;
       if(!picks.includes(k)) picks.push(k);
     }
   }
-  return picks;
+
+  // 🔒 Garantir un Protect s'il y a phishing/fraude et pas de filtrage existant
+  let guardProtect = false;
+  const hasProtect = picks.includes('Essential') || picks.includes('Advanced');
+  if(any(painpoints,['Phishing','Fraude']) && filtrage!=='Oui' && !hasProtect){
+    const protectCandidate = (S.Advanced > S.Essential ? 'Advanced' : 'Essential');
+    guardProtect = true;
+    if(picks.length < target) {
+      picks.push(protectCandidate);
+    } else {
+      picks[picks.length-1] = protectCandidate;
+    }
+  }
+
+  return {picks, guardProtect};
 }
 
 function explain(bundle, S, ctx){
   const parts = [];
-  if(bundle.includes('Advanced')) parts.push("supervision + conformité (reports auditables)");
-  if(bundle.includes('Essential') && !bundle.includes('Advanced')) parts.push("filtrage simple, déploiement rapide");
-  if(bundle.includes('Coach')) parts.push("réduction risque humain (anti-phishing/fraude)");
-  if(bundle.includes('Academy')) parts.push("e-learning conformité & sensibilisation continue");
-  if(bundle.includes('Sikker')) parts.push("gouvernance des accès & mots de passe (multi-sites/prestataires)");
+  if(bundle.includes('Advanced')) parts.push('supervision + conformité (reports auditables)');
+  if(bundle.includes('Essential') && !bundle.includes('Advanced')) parts.push('filtrage simple, déploiement rapide');
+  if(bundle.includes('Coach')) parts.push('réduction risque humain (anti-phishing/fraude)');
+  if(bundle.includes('Academy')) parts.push('e-learning conformité & sensibilisation continue');
+  if(bundle.includes('Sikker')) parts.push('gouvernance des accès & mots de passe (multi-sites/prestataires)');
 
   const warns = [];
-  if(!bundle.includes('Advanced') && !bundle.includes('Essential') && any(ctx.painpoints,["Phishing","Fraude"])){
-    warns.push("⚠️ Sans filtrage mail, la formation réduit le risque humain mais ne bloque pas techniquement les attaques.");
+  if(!bundle.includes('Advanced') && !bundle.includes('Essential') && any(ctx.painpoints,['Phishing','Fraude'])){
+    warns.push('⚠️ Sans filtrage mail, la formation réduit le risque humain mais ne bloque pas techniquement les attaques.');
   }
-  return {text: parts.join(" · "), warns};
+  return {text: parts.join(' · '), warns};
 }
 
 function offers(bundle, ctx){
   const o=[]; const seg = ctx.segment; const secteur = ctx.secteur; const n=bundle.length;
-  if(n===2) o.push("Incentive multi-produit: −8% pack 2 produits");
-  if(n===3) o.push("Incentive multi-produit: −12% pack 3 produits");
-  if(seg==="1-50" && bundle.includes('Essential') && bundle.includes('Coach')){
-    o.push("Ajouter Sikker sous 30 jours: 3 mois off (25 sièges)");
+  if(n===2) o.push('Incentive multi-produit: −8% pack 2 produits');
+  if(n===3) o.push('Incentive multi-produit: −12% pack 3 produits');
+  if(seg==='1-50' && bundle.includes('Essential') && bundle.includes('Coach')){
+    o.push('Ajouter Sikker sous 30 jours: 3 mois off (25 sièges)');
   }
-  if(["51-250","251-1000"].includes(seg) && n===3){
-    o.push("Option Academy 3 mois off si adoption ≥70% à M+3");
+  if(['51-250','251-1000'].includes(seg) && n===3){
+    o.push('Option Academy 3 mois off si adoption ≥70% à M+3');
   }
-  if((secteur==="Santé" || secteur==="Éducation") && bundle.includes('Academy')){
-    o.push("Pilote Academy: 3 mois off pour équipe critique");
+  if((secteur==='Santé' || secteur==='Éducation') && bundle.includes('Academy')){
+    o.push('Pilote Academy: 3 mois off pour équipe critique');
   }
   if(ctx.filtrage==='Oui' && bundle.includes('Coach') && bundle.includes('Academy')){
-    o.push("Filtrage existant: Coach+Academy à −15% (complément pédagogique)");
+    o.push('Filtrage existant: Coach+Academy à −15% (complément pédagogique)');
   }
   return o;
 }
 
-function generer(){
-  const ctx = getForm();
-  ctx.segment = segFromTaille(ctx.taille);
-  const S = scoreAll(ctx);
-  const bundle = choixBundle(S, ctx);
-  const {text, warns} = explain(bundle, S, ctx);
-
+function render(S, bundle, guard, ctx){
   const pretty = Object.entries(S)
     .filter(([,v])=>v>-999)
     .sort((a,b)=>b[1]-a[1])
     .map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`)
     .join('');
-  document.getElementById('scores').innerHTML = `<div class="scores">${pretty}</div>`;
+  $('scores').innerHTML = `<div class="scores">${pretty}</div>`;
 
+  const {text, warns} = explain(bundle, S, ctx);
   const title = bundle.join(' + ');
   const ofrs = offers(bundle, ctx).map(x=>`<li>${x}</li>`).join('');
   const warnHtml = warns.length?`<div class="panel warn" style="margin-top:10px">${warns.map(w=>`<div>${w}</div>`).join('')}</div>`:'';
-  document.getElementById('result').innerHTML = `
+  $('result').innerHTML = `
     <div class="rec">
       <div class="badg">Bundle recommandé</div>
       <h2 style="margin:8px 0 6px">${title||'—'}</h2>
       <div class="hint">${text||''}</div>
+      ${guard?'<div class="badg warn" style="margin-top:8px">Protect requis (phishing/fraude détecté)</div>':''}
     </div>
     ${warnHtml}
   `;
-  document.getElementById('offers').innerHTML = ofrs?`<h4>💡 Suggestions d'offre</h4><ul>${ofrs}</ul>`:'';
-  document.getElementById('pitch').innerHTML = '<h4>🗣️ Pitch conseillé</h4><p class="hint">Ajoute ici tes pitchs par segment/secteur et je les brancherai pour affichage automatique.</p>'
+  $('offers').innerHTML = ofrs?`<h4>💡 Suggestions d'offre</h4><ul>${ofrs}</ul>`:'';
+  $('pitch').innerHTML = '<h4>🗣️ Pitch conseillé</h4><p class="hint">Ajoute ici tes pitchs par segment/secteur et je les brancherai pour affichage automatique.</p>';
+}
+
+function generer(){
+  clearWarn();
+  const ctx = getForm();
+  if(!ctx) return; // early stop if DOM invalid
+  ctx.segment = segFromTaille(ctx.taille);
+  const S = scoreAll(ctx);
+  const out = choixBundle(S, ctx);
+  render(S, out.picks, out.guardProtect, ctx);
 }
 
 function resetForm(){
-  document.getElementById('secteur').selectedIndex=0;
-  document.getElementById('taille').selectedIndex=0;
-  document.getElementById('maturite').selectedIndex=0;
-  document.getElementById('budget').selectedIndex=0;
-  document.getElementById('contraintes').selectedIndex=0;
-  document.getElementById('multi').selectedIndex=0;
-  document.getElementById('filtrage').checked=false;
+  if(!checkDOM()) return;
+  $('secteur').selectedIndex=1; // Industrie par défaut plus réaliste
+  $('taille').selectedIndex=1;   // 11-50
+  $('maturite').selectedIndex=1; // Moyenne
+  $('budget').selectedIndex=1;   // Moyen
+  $('contraintes').selectedIndex=0;
+  $('multi').selectedIndex=0;
+  $('filtrage').checked=false;
   document.querySelectorAll('#pp input').forEach(i=>{i.checked=false});
-  document.getElementById('result').innerHTML='';
-  document.getElementById('scores').innerHTML='';
-  document.getElementById('offers').innerHTML='';
-  document.getElementById('pitch').innerHTML='';
+  $('result').innerHTML='';
+  $('scores').innerHTML='';
+  $('offers').innerHTML='';
+  $('pitch').innerHTML='';
+  clearWarn();
 }
+
+// ---------- Test presets ----------
+function applyTest(key){
+  if(!checkDOM()) return;
+  resetForm();
+  switch(key){
+    case 'tpe-anti-phish':
+      $('secteur').value='Industrie';
+      $('taille').value='11-50';
+      $('maturite').value='Moyenne';
+      $('budget').value='Moyen';
+      $('contraintes').value='Non';
+      $('multi').value='Oui';
+      document.querySelector('#pp input[value="Phishing"]').checked=true;
+      document.querySelector('#pp input[value="Conformité"]').checked=true;
+      break;
+    case 'pme-public':
+      $('secteur').value='Administration';
+      $('taille').value='101-250';
+      $('maturite').value='Élevée';
+      $('budget').value='Moyen';
+      $('contraintes').value='Oui';
+      $('multi').value='Oui';
+      document.querySelector('#pp input[value="Phishing"]').checked=true;
+      document.querySelector('#pp input[value="Sensibilisation"]').checked=true;
+      break;
+    case 'mid-multi':
+      $('secteur').value='Industrie';
+      $('taille').value='250-1000';
+      $('maturite').value='Moyenne';
+      $('budget').value='Moyen';
+      $('contraintes').value='Non';
+      $('multi').value='Oui';
+      document.querySelector('#pp input[value="Accès partagés"]').checked=true;
+      document.querySelector('#pp input[value="Gouvernance"]').checked=true;
+      break;
+    case 'sensibilisation-only':
+      $('secteur').value='Éducation';
+      $('taille').value='51-100';
+      $('maturite').value='Moyenne';
+      $('budget').value='Moyen';
+      $('contraintes').value='Oui';
+      $('multi').value='Non';
+      document.querySelector('#pp input[value="Sensibilisation"]').checked=true;
+      document.querySelector('#pp input[value="Conformité"]').checked=true;
+      $('filtrage').checked=true;
+      break;
+  }
+}
+
+// Wire events only after DOM is ready
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(!checkDOM()) return;
+  $('btn-gen').addEventListener('click', generer);
+  $('btn-reset').addEventListener('click', (e)=>{ e.preventDefault(); resetForm(); });
+  document.querySelectorAll('[data-test]').forEach(b=>{
+    b.addEventListener('click', ()=>{ applyTest(b.dataset.test); generer(); });
+  });
+  // set initial defaults and run once for preview
+  resetForm();
+  generer();
+});
 </script>
 </body>
 </html>
+
